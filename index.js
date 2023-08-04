@@ -23,7 +23,7 @@ app.get('/info', (req, res, next) => {
 })
 
 
-app.get('/persons', (req, res, next) => {
+app.get('/api/persons', (req, res, next) => {
   Person.find({})
     .then(result => {
       const personsArray = result.map(person => ({
@@ -38,7 +38,7 @@ app.get('/persons', (req, res, next) => {
 })
 
 
-app.get('/persons/:id', (req, res, next) => {
+app.get('/api/persons/:id', (req, res, next) => {
   Person.findById(req.params.id)
     .then(person => {
       if (person) {
@@ -51,7 +51,7 @@ app.get('/persons/:id', (req, res, next) => {
 })
 
 
-app.delete('/persons/:id', (req, res, next) => {
+app.delete('/api/persons/:id', (req, res, next) => {
   Person.findByIdAndRemove(req.params.id)
     .then(result => {
       console.log(`${result.name} poistettu.`)
@@ -61,7 +61,7 @@ app.delete('/persons/:id', (req, res, next) => {
 })
 
 // findUpdatelle annetaan NORMAALI javascript olio
-app.put('/persons/:id', (req, res, next) => {
+app.put('/api/persons/:id', (req, res, next) => {
   const body = req.body
   const person = {
     name: body.name,
@@ -75,7 +75,7 @@ app.put('/persons/:id', (req, res, next) => {
 })
 
 
-app.post('/persons', (req, res, next) => {
+app.post('/api/persons', (req, res, next) => {
   const body = req.body
   // Tarkastetaan löytyykö kannasta jo sama nimi | Myös front tekee tämän
   Person.find({ name: body.name })
