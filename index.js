@@ -1,111 +1,107 @@
+require('dotenv').config()// Tuodaan ympäristömuuttujat (.env)
 const express = require('express')
-const morgan = require('morgan')
 const cors = require('cors')
-
+const Person = require('./models/person')
+const errorHandler = require('./customMW/errorHandler')// Tuodaan custom errorHandler
+const morganLogger = require('./customMW/morganLogger')// Tuodaan custom morganLogger
 const app = express()
 
-app.use(cors())
-app.use(express.static('build'))
+app.use(cors())// MW Sallii HTTP pyynnöt eri alkuperästä (front&back eri Domain)
+app.use(express.static('build'))// Front käyttöön
+app.use(express.json()) // MW parsii HTTP pyynnön JSON bodyn JS objektiksi
+app.use(morganLogger) // Morgankirjasto EventLogger (Custom MW)
 
-app.use(morgan((tokens, req, res) => {
-    return [
-        tokens.method(req, res),
-        tokens.url(req, res),
-        tokens.status(req, res),
-        tokens.res(req, res, 'content-lenght'), '-',
-        tokens['response-time'](req, res), 'ms',
-        JSON.stringify(req.body)
-    ].join(' ')
-}))
-//Midlewaret ennen reittejä
-app.use(express.json())
 
-let persons = [
-  {
-    id: 1,
-    name: "Henna Luoto",
-    number: "020-23452345"
-  },
-  {
-    id: 2,
-    name: "Timo Tammisto",
-    number: "12-52345"
-  },
-  {
-    id: 3,
-    name: "Mikko Vuori",
-    number: "234-23452345"
-  }
-]
-
-app.get('/', (req, res) => {
-    res.send('<h1>Hello World!</h1>')
+app.get('/info', (req, res, next) => {
+    Person.countDocuments({})
+        .then(result => {
+            const p = Date()
+            const payload = `Puhelinluettelo sisältää ${result} henkilön tiedot.<br>${p}`
+            res.send(payload)
+        })
+    .catch(error => next(error))
     })
-
-app.get('/info', (req, res) => {
-    const m = Math.max(...persons.map(n => n.id));
-    const p = Date();
-    const payload = `Puhelinluettelo sisältää ${m} henkilön tiedot.<br>${p}`;
-    res.send(payload);
-    });
     
     
-  
-app.get('/persons', (req, res) => {
-    res.json(persons)
-    })
-
-app.get('/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const note = persons.find(note => note.id === id)
-
-    if (note) {
-        response.json(note)
-        } else {
-        response.status(404).end()
-        }
-    })
-
-app.delete('/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    persons = persons.filter(note => note.id !== id)
+app.get('/persons', (req, res, next) => {
+    Person.find({})
+        .then(result => {
+        const personsArray = result.map(person => ({
+            name: person.name,
+            number: person.number,
+            id: person.id
+        }))
     
-    response.status(204).end()
+        res.json(personsArray)
     })
+    .catch(error => next(error))
+})
+    
 
-
-app.post('/persons', (request, response) => {
-const body = request.body
-
-
-if (!body.name || !body.number) {
-    return response.status(400).json({ 
-    error: 'Nimi tai numero puuttuu!' 
+app.get('/persons/:id', (req, res, next) => {
+    Person.findById(req.params.id)
+        .then(person => {
+            if (person) {
+                res.json(person)
+            } else {
+                res.status(404).end()
+            }
     })
-}
-
-const nimiTarkastus = persons.map(person => {
-    return person.name === body.name
-    })
-
-if ( nimiTarkastus.includes(true) ) {
-    return response.status(400).json({
-        error: 'Nimi löytyy jo luettelosta!'
-    })
-}
-
-const person = {
-    name: body.name,
-    number: body.number,
-    id: Math.floor(Math.random() * 5000)
-}
-
-persons = persons.concat(person)
-
-response.json(person)
+    .catch(error => next(error))
 })
 
-const PORT = process.env.PORT || 3001
+// Poisto "palvelimen reititin", joka vastaa /person/:id HTTP DELETE pyyntöön [osa :id otetaan pyynnön reitistä]
+// findBy etsii kannasta id:n mukaan henkilön [Person.  on mongoose-malli]
+// findby.. palauttaa promisen -> .then jatkaa vastaa statuksella 204 (no content) tyhjänä.end()
+app.delete('/persons/:id', (req, res, next) => {
+    Person.findByIdAndRemove(req.params.id)
+        .then(result => {
+            console.log('Nimi poistettu')
+            res.status(204).end()
+    })
+    .catch(error => next(error))
+})
+// Muutos tehdään HTTP put komennolla, new:true jotta vastaus saa uuden arvon emt..
+// findUpdatelle annetaan NORMAALI javascript olio
+app.put('/persons/:id', (req, res, next) => {
+    const body = req.body
+    const person = {
+        name: body.name,
+        number: body.number
+    }
+    Person.findByIdAndUpdate(req.params.id, person, { new: true , runValidators: true, contex: 'query'})
+        .then(updatedPerson => {
+            res.json(updatedPerson)
+    })
+    .catch(error => next(error))
+})
+
+// käsitellään HTTP POST, jos nimi tai numero puuttuu palautetaan status 400
+app.post('/persons', (req, res, next) => {
+    const body = req.body
+    // Tarkastetaan löytyykö kannasta jo sama nimi | Myös front tekee tämän
+    Person.find({ name: body.name })
+        .then(result => {
+            if (result.length > 0) {
+                return res.status(400).json({error: 'Nimi on jo luettelossa!'})
+            }
+
+        const person = new Person({
+            name: body.name,
+            number: body.number
+        })
+
+        person.save()
+            .then(savedPerson => {
+                res.json(savedPerson)
+        })
+       .catch(error => next(error))
+    })
+})
+
+app.use(errorHandler)// Viimeinen MW jotta ylempänä liikkeelle lähtenyt err päätyy lopulta tänne
+
+const PORT = process.env.PORT
 app.listen(PORT, () => {
-console.log(`Server running on port ${PORT}`)
+    console.log(`Server running on port ${PORT}`)
 })
