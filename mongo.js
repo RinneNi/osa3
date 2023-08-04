@@ -23,27 +23,29 @@ const personsSchema = new mongoose.Schema({
 const Person = mongoose.model('Person', personsSchema)
 
 if (!process.argv[3]) {
-    console.log('Puhelinluettelo:')
+  console.log('Puhelinluettelo:')
 
-    Person.find({})
-        .then(result => {
-            result.forEach(person => {
-                if (person.name) {
-                console.log(person.name, person.number)
-            }
-            mongoose.connection.close()
-            })
+  Person.find({})
+    .then(result => {
+      result.forEach(person => {
+        if (person.name) {
+          console.log(person.name, person.number)
+        }
+        mongoose.connection.close()
+      })
     })
 } else {
 
-const person = new Person({
+  const person = new Person({
     name: name,
     number: number,
   })
 
 
-person.save().then(result => {
-  console.log(`Lisätty ${name} Numero ${number} puhelinluetteloon.`)
-  mongoose.connection.close()
-})
+  person.save().then(result => {
+    if (result) {
+      console.log(`Lisätty ${name} Numero ${number} puhelinluetteloon.`)
+    }
+    mongoose.connection.close()
+  })
 }

@@ -10,7 +10,9 @@ console.log('connecting to', url)
 mongoose.connect(url)// Yhdistetään Tietokantaan
 
   .then(result => {
-    console.log('connected to MongoDB')
+    if (result) {
+      console.log('connected to MongoDB')
+    }
   })
   .catch((error) => {
     console.log('error connecting to MongoDB:', error.message)
